@@ -1,0 +1,28 @@
+[
+  {
+    "id": "spectre_sustainable_city",
+    "input": "I want a quiet electric luxury car for city use in London with sustainable materials.",
+    "must_include": ["Spectre", "sustainable", "Availability", "Estimated investment"]
+  },
+  {
+    "id": "cullinan_family_estate",
+    "input": "A Dubai client wants a family car for mountain trips and estate visits.",
+    "must_include": ["Cullinan", "GCC", "Complementary options"]
+  },
+  {
+    "id": "phantom_formal",
+    "input": "The client wants the most formal black chauffeur-driven experience possible.",
+    "must_include": ["Phantom", "Black", "Rear"]
+  },
+  {
+    "id": "ghost_discreet_driver",
+    "input": "New York entrepreneur, driver-focused, discreet, not too theatrical.",
+    "must_include": ["Ghost", "US", "Estimated investment"]
+  },
+  {
+    "id": "timeline_risk",
+    "input": "EU client needs a Phantom in 6 months for a formal ceremony.",
+    "must_include": ["Phantom", "lead time", "Estimated investment"]
+  }
+]
+
