@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     llm_model: str = Field(default="grok-3-mini")
     llm_timeout_seconds: int = Field(default=60)
     db_path: Path = Field(default=Path("data/catalog.db"))
+    # Separate file on purpose: catalog.db is dropped and reseeded on rebuild,
+    # and conversations are the only data here that cannot be regenerated.
+    conversations_db_path: Path = Field(default=Path("data/conversations.db"))
     chroma_dir: Path = Field(default=Path(".chroma"))
     collection_name: str = Field(default="lca_knowledge")
     retrieval_k: int = Field(default=4)

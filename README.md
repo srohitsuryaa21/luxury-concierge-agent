@@ -23,11 +23,24 @@ LCA_LLM_MODEL=llama-3.3-70b-versatile
 ```
 
 ```powershell
-uv run streamlit run app/streamlit_app.py
+uv run uvicorn app.server:app --reload --port 8000
 ```
+
+Open <http://127.0.0.1:8000>.
 
 `.env` is gitignored. Never paste a real API key into GitHub, chat, screenshots,
 or the README.
+
+The front end is hand-written HTML, CSS and JavaScript served by FastAPI - no
+build step, no Node, no web fonts, so it renders identically offline. A
+dashboard framework was the wrong instrument here: this is a client-facing tool
+for a luxury marque, and framework chrome reads as a template.
+
+A Streamlit version remains at `app/streamlit_app.py` for comparison:
+
+```powershell
+uv run streamlit run app/streamlit_app.py
+```
 
 ### Any OpenAI-compatible provider
 
@@ -113,6 +126,32 @@ constraints. Pricing is itemised from these rows.
 
 All figures are illustrative sales-discovery data. Bespoke commission pricing is
 not published by any manufacturer, so there is no public source for it.
+
+## Conversation history
+
+`data/conversations.db` (SQLite) keeps every commission conversation, its briefs,
+and the full structured result of each answer.
+
+It is a **separate file from the catalogue on purpose**. `catalog.db` is a build
+artifact - `build_database` drops every table and reseeds it from `seed.py` and
+`knowledge.py`, and it is gitignored because it regenerates on demand.
+Conversations are the only data here that cannot be reconstructed, so they live
+in a file that nothing rebuilds.
+
+Each assistant turn stores the whole result payload, not just its prose, so
+reopening a conversation re-renders the commission document - swatch, ledger,
+provenance and all - rather than a transcript of text.
+
+Memory is read from the database rather than posted by the browser. The client
+sends only a `conversation_id`, so it cannot rewrite what the agent believes was
+said earlier in the sale.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/brief` | Configure; omit `conversation_id` to start a new one |
+| `GET /api/conversations` | List, newest first |
+| `GET /api/conversations/{id}` | Full transcript with stored payloads |
+| `DELETE /api/conversations/{id}` | Remove a conversation and its turns |
 
 ## Retrieval
 

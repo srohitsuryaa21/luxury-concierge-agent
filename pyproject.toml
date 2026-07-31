@@ -5,6 +5,8 @@ description = "Agentic AI concierge for bespoke luxury vehicle configuration."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
     "chromadb>=0.5.23",
     "langchain-core>=0.3.28",
     "langchain-openai>=0.2.14",

@@ -182,9 +182,16 @@ class LuxuryConciergeAgent:
             }
 
         if surcharge_budget is not None:
-            state["removed_for_budget"] = enforce_surcharge_budget(
-                state["configuration"], repo, surcharge_budget
-            )
+            removed = enforce_surcharge_budget(state["configuration"], repo, surcharge_budget)
+            state["removed_for_budget"] = removed
+            if removed:
+                # The rationale was written before the trim, so it can claim an
+                # item the client no longer has. Left alone it contradicts the
+                # specification directly above it on the page.
+                state["configuration"]["rationale"] += (
+                    f" Budget then required removing {', '.join(removed)}, so the"
+                    " specification above supersedes any earlier mention of them."
+                )
 
         state["config_source"] = source
         state["rejected_items"] = rejected

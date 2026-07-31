@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Luxury Concierge — Commission Studio</title>
+<link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wordmark">
+    <button class="ghost-btn" id="history-toggle" aria-label="Past commissions">Commissions</button>
+    <span class="rule"></span>
+    <span class="monogram">LCA</span>
+    <span class="rule"></span>
+    <span class="marque">Commission Studio</span>
+  </div>
+  <div class="masthead-right">
+    <button class="ghost-btn" id="new-conversation" hidden>New commission</button>
+    <div class="status" id="status">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">connecting…</span>
+    </div>
+  </div>
+</header>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Past commissions">
+  <div class="drawer-head">
+    <span>Past commissions</span>
+    <button class="ghost-btn" id="drawer-close" aria-label="Close">Close</button>
+  </div>
+  <div class="drawer-list" id="drawer-list"></div>
+</aside>
+
+<main>
+  <section class="stage" id="stage">
+    <p class="overline">Bespoke configuration</p>
+    <h1>Describe the client.</h1>
+    <p class="lede">
+      Region, usage, cabin mood, timeline, budget — in whatever words they used.
+      The brief is read, the commission is configured against the catalogue, and
+      every figure is calculated, never guessed.
+    </p>
+
+    <div class="samples" id="samples"></div>
+  </section>
+
+  <section class="thread" id="thread" hidden></section>
+</main>
+
+<form class="composer" id="composer" autocomplete="off">
+  <textarea id="brief" rows="1" placeholder="A Dubai client, winters in the desert, wants presence for ceremonial use…"></textarea>
+  <button type="submit" id="send" aria-label="Submit brief">
+    <span class="send-label">Configure</span>
+    <span class="send-spinner" aria-hidden="true"></span>
+  </button>
+</form>
+
+<footer class="meter" id="meter">
+  <span class="meter-item"><em id="m-calls">0</em> calls</span>
+  <span class="meter-sep"></span>
+  <span class="meter-item"><em id="m-fail">0</em> failures</span>
+  <span class="meter-sep"></span>
+  <span class="meter-item"><em id="m-tokens">0</em> tokens</span>
+  <span class="meter-sep"></span>
+  <span class="meter-item" id="m-catalogue"></span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

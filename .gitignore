@@ -5,8 +5,12 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .chroma/
-# Generated from src/lca/data/seed.py and knowledge.py on first run.
+# catalog.db regenerates from seed.py/knowledge.py; conversations.db is local
+# client data. The -wal/-shm sidecars hold uncheckpointed rows, so ignore them
+# too - `data/*.db` alone does not match them.
 data/*.db
+data/*.db-wal
+data/*.db-shm
 dist/
 build/
 *.egg-info/
