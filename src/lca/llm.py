@@ -88,6 +88,21 @@ def _record_failure(exc: BaseException | None = None, note: str = "") -> None:
 
 _USAGE = Usage()
 
+# Evals and tests exercise the deterministic layer, which is the layer that must
+# never regress. Letting them call the model spends a daily quota on a result
+# they do not assert against, so they turn this on and the model is skipped
+# outright - not counted as a failure, because choosing not to call is not one.
+_OFFLINE = False
+
+
+def set_offline(offline: bool) -> None:
+    global _OFFLINE
+    _OFFLINE = offline
+
+
+def is_offline() -> bool:
+    return _OFFLINE
+
 
 def get_usage() -> Usage:
     return _USAGE
@@ -150,6 +165,9 @@ def synthesize_with_optional_llm(state: dict[str, Any], fallback: str) -> str:
 
 
 def stream_sales_summary(state: dict[str, Any], fallback: str) -> Iterator[str]:
+    if _OFFLINE:
+        yield fallback
+        return
     config = _provider_config()
     if config is None:
         yield fallback
@@ -199,6 +217,8 @@ def complete_json(system: str, user: str) -> dict[str, Any] | None:
     produces something unparseable. Every caller must have a deterministic
     fallback: the agent degrades to rules rather than failing the turn.
     """
+    if _OFFLINE:
+        return None
     config = _provider_config()
     if config is None:
         return None

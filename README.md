@@ -196,9 +196,15 @@ faster, needs no model, and is the default.
 ## Evaluation
 
 ```powershell
-uv run lca-eval
+uv run lca-eval          # offline, ~1.5s, no tokens spent
+uv run lca-eval --live   # exercises the model path deliberately
 uv run pytest -q
 ```
+
+The suite is **offline by default**. These cases assert the deterministic layer,
+so calling a hosted model spends a daily token quota on a result they never
+check, and makes a suite that should be repeatable depend on a rate limit. One
+`--live` run costs roughly 40,000 tokens; the free tier is 100,000 a day.
 
 20 scenario cases plus unit tests. The evals assert against the agent's
 structured state - chosen model, region, materials, budget verdict, retrieval

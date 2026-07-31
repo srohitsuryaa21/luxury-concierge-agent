@@ -18,6 +18,7 @@ import typer
 
 from lca.agent import LuxuryConciergeAgent
 from lca.data import get_repository
+from lca.llm import set_offline
 
 app = typer.Typer(add_completion=False)
 
@@ -96,7 +97,21 @@ def _check(result: dict[str, Any], expect: dict[str, Any]) -> list[str]:
 
 
 @app.command()
-def main(cases_path: Path = Path("src/lca/evals/cases.json"), verbose: bool = False) -> None:
+def main(
+    cases_path: Path = Path("src/lca/evals/cases.json"),
+    verbose: bool = False,
+    live: bool = False,
+) -> None:
+    """Run the scenario suite.
+
+    Offline by default. These cases assert the deterministic layer, so calling a
+    hosted model spends a daily token quota on a result they never check - and
+    makes a suite that should be repeatable depend on a rate limit. Pass --live
+    to exercise the model path deliberately.
+    """
+    set_offline(not live)
+    typer.echo("Model: LIVE" if live else "Model: offline (pass --live to call it)")
+
     cases = json.loads(cases_path.read_text(encoding="utf-8"))
     agent = LuxuryConciergeAgent()
     results = []
