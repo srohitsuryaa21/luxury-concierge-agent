@@ -2,27 +2,178 @@
   {
     "id": "spectre_sustainable_city",
     "input": "I want a quiet electric luxury car for city use in London with sustainable materials.",
-    "must_include": ["Spectre", "sustainable", "Availability", "Estimated investment"]
+    "expect": {
+      "model": "Spectre",
+      "region": "UK",
+      "leather_contains": "Scivaro",
+      "response_contains": ["Estimated investment", "Availability"]
+    }
   },
   {
     "id": "cullinan_family_estate",
     "input": "A Dubai client wants a family car for mountain trips and estate visits.",
-    "must_include": ["Cullinan", "GCC", "Complementary options"]
+    "expect": {
+      "model": "Cullinan",
+      "region": "GCC",
+      "response_contains": ["Complementary options"]
+    }
   },
   {
-    "id": "phantom_formal",
+    "id": "phantom_formal_chauffeur",
     "input": "The client wants the most formal black chauffeur-driven experience possible.",
-    "must_include": ["Phantom", "Black", "Rear"]
+    "expect": {
+      "model": "Phantom",
+      "paint_contains": "Black Diamond",
+      "response_contains": ["Rear"]
+    }
   },
   {
     "id": "ghost_discreet_driver",
     "input": "New York entrepreneur, driver-focused, discreet, not too theatrical.",
-    "must_include": ["Ghost", "US", "Estimated investment"]
+    "expect": { "model": "Ghost", "region": "US" }
   },
   {
-    "id": "timeline_risk",
-    "input": "EU client needs a Phantom in 6 months for a formal ceremony.",
-    "must_include": ["Phantom", "lead time", "Estimated investment"]
+    "id": "named_model_overrides_inference",
+    "input": "EU client needs a Phantom in 6 months for a family mountain trip.",
+    "expect": { "model": "Phantom", "region": "EU" }
+  },
+  {
+    "id": "budget_fits_ny_ghost",
+    "input": "New York client wants a Ghost, budget around 700,000, needs it in 8 months.",
+    "expect": {
+      "model": "Ghost",
+      "region": "US",
+      "budget_fit": "fits",
+      "timeline_fit": "fits",
+      "proposals": 1
+    }
+  },
+  {
+    "id": "over_budget_triggers_reconfiguration",
+    "input": "GCC client wants a Phantom with a gallery commission, budget of 400k, ceremonial black.",
+    "expect": {
+      "model": "Phantom",
+      "region": "GCC",
+      "budget_fit": "over_budget",
+      "proposals": 2,
+      "response_contains": ["above the stated budget"]
+    }
+  },
+  {
+    "id": "timeline_at_risk_is_flagged",
+    "input": "EU client wants a Cullinan for family mountain trips, needs delivery in 3 months.",
+    "expect": {
+      "model": "Cullinan",
+      "region": "EU",
+      "timeline_fit": "at risk",
+      "response_contains": ["is at risk"]
+    }
+  },
+  {
+    "id": "spectre_vegan_gcc",
+    "input": "GCC client wants a fully sustainable electric grand tourer, vegan interior, quiet cabin.",
+    "expect": {
+      "model": "Spectre",
+      "region": "GCC",
+      "leather_vegan": true,
+      "response_contains": ["Regenerative drive briefing"]
+    }
+  },
+  {
+    "id": "performance_options_selected",
+    "input": "UK client, Cullinan estate car, wants performance driver-focused handling and dynamic feel.",
+    "expect": {
+      "model": "Cullinan",
+      "region": "UK",
+      "response_contains": ["Dynamic drive package"]
+    }
+  },
+  {
+    "id": "wedding_white_ceremonial",
+    "input": "EU client wants an Arctic wedding-day car, elegant white exterior, formal but joyful.",
+    "expect": {
+      "model": "Phantom",
+      "region": "EU",
+      "paint_contains": "Arctic White"
+    }
+  },
+  {
+    "id": "green_forest_california",
+    "input": "California client wants a driver-focused, discreet green forest exterior for weekend touring.",
+    "expect": {
+      "model": "Ghost",
+      "region": "US",
+      "paint_contains": "Emerald Aurora"
+    }
+  },
+  {
+    "id": "warm_walnut_chauffeur",
+    "input": "New York client wants a warm brown cabin with walnut trim, chauffeur experience for VIP clients.",
+    "expect": {
+      "model": "Phantom",
+      "leather_contains": "Ardent Tan",
+      "veneer_contains": "Circassian walnut",
+      "response_contains": ["Privacy suite"]
+    }
+  },
+  {
+    "id": "no_preferences_uses_house_defaults",
+    "input": "A client wants something bespoke and elegant, no particular preferences stated.",
+    "expect": {
+      "model": "Phantom",
+      "region": "EU",
+      "paint_contains": "Midnight Sapphire"
+    }
+  },
+  {
+    "id": "budget_k_suffix_parsed",
+    "input": "EU client wants a Ghost, budget 300k, timeline flexible.",
+    "expect": {
+      "model": "Ghost",
+      "budget_eur": 300000,
+      "budget_fit": "over_budget"
+    }
+  },
+  {
+    "id": "gcc_budget_and_timeline_both_fit",
+    "input": "GCC client, Cullinan for family, mountain trips, budget 700k, 10 months timeline.",
+    "expect": {
+      "model": "Cullinan",
+      "region": "GCC",
+      "budget_fit": "fits",
+      "timeline_fit": "fits"
+    }
+  },
+  {
+    "id": "desert_heat_retrieves_regional_knowledge",
+    "input": "Riyadh client, the car will sit outdoors in extreme desert heat and sand all summer.",
+    "expect": {
+      "region": "GCC",
+      "knowledge_categories": ["regional"]
+    }
+  },
+  {
+    "id": "collector_retrieves_personalisation_knowledge",
+    "input": "A collector wants an unrepeatable commission with a gallery artwork by a named artist.",
+    "expect": {
+      "response_contains": ["Gallery commission by a named artist"]
+    }
+  },
+  {
+    "id": "every_priced_item_exists_in_catalogue",
+    "input": "London client wants a discreet navy owner-driver car with performance feel, budget 600000.",
+    "expect": {
+      "region": "UK",
+      "all_line_items_priced": true
+    }
+  },
+  {
+    "id": "vegan_cabin_never_pairs_leather",
+    "input": "Amsterdam client, strictly vegan cruelty-free cabin, zero-emission, bamboo trim.",
+    "expect": {
+      "model": "Spectre",
+      "leather_vegan": true,
+      "veneer_contains": "bamboo"
+    }
   }
 ]
-

@@ -1,106 +1,171 @@
 # Luxury Concierge Agent
 
 Agentic AI concierge for bespoke luxury vehicle configuration. A client describes
-their desired experience; the agent retrieves product knowledge, proposes a
-configuration, calls mocked commercial tools, and returns a sales-ready summary.
+the experience they want; the agent extracts structured intent, retrieves product
+knowledge, proposes a configuration from a catalogue database, calls mocked
+commercial tools for price and availability, re-negotiates when the estimate
+breaks the client's budget, and returns a sales-ready summary.
 
-## Demo
+## Setup
 
 ```powershell
 uv sync --extra dev
-Copy-Item .env.example .env
+```
+
+Create a `.env` in the project root with a free Groq key from
+<https://console.groq.com> → API Keys:
+
+```env
+GROQ_API_KEY=your-key-here
+LCA_MODEL_PROVIDER=groq
+LCA_LLM_BASE_URL=https://api.groq.com/openai/v1
+LCA_LLM_MODEL=llama-3.3-70b-versatile
+```
+
+```powershell
 uv run streamlit run app/streamlit_app.py
 ```
 
-Mock mode works without an API key. Use it first to verify the project.
+`.env` is gitignored. Never paste a real API key into GitHub, chat, screenshots,
+or the README.
 
-## No-Credit Local LLM Option
+### Any OpenAI-compatible provider
 
-You can run the project without buying OpenAI API credits.
+The integration is a base URL, a model id and a key, so switching provider is
+configuration rather than code. The first key found among `LLM_API_KEY`,
+`XAI_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY` and
+`OPENAI_API_KEY` is used.
 
-The default portfolio-safe path is:
+| Provider | `LCA_LLM_BASE_URL` |
+| --- | --- |
+| Groq | `https://api.groq.com/openai/v1` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
+| xAI (Grok) | `https://api.x.ai/v1` |
+| OpenAI | `https://api.openai.com/v1` |
 
-```env
-LCA_MODEL_PROVIDER=mock
-LCA_RETRIEVER_BACKEND=lexical
-```
+### When the model is unreachable
 
-For a real local LLM, install Ollama, pull a model, and switch the provider:
+The app still answers, from deterministic rules, and says so rather than
+pretending. The sidebar shows a connection status, a running meter of calls,
+failures and tokens, and the text of the last model error.
 
-```powershell
-ollama pull llama3.1:8b
-```
+That visibility is deliberate. A tolerant fallback makes a broken key look
+exactly like a working demo, so the failure has to be counted and displayed.
 
-```env
-LCA_MODEL_PROVIDER=ollama
-LCA_OLLAMA_BASE_URL=http://localhost:11434
-LCA_OLLAMA_MODEL=llama3.1:8b
-LCA_OLLAMA_TIMEOUT_SECONDS=90
-LCA_RETRIEVER_BACKEND=lexical
-```
+## Design: LLM proposes, schema disposes
 
-This uses the local model only for sales-summary wording. The deterministic
-tools and LangGraph flow still control the business logic.
+The model contributes judgement and nothing else.
 
-To use semantic RAG with OpenAI embeddings:
+| Decision | Owner |
+| --- | --- |
+| Understanding the brief | LLM, validated into `ExtractedBrief` |
+| Choosing the configuration | LLM, restricted to catalogue rows |
+| Price, lead time, budget fit | Deterministic Python |
+| Whether to re-configure | Conditional graph edge |
+| Writing the summary | LLM, grounded in retrieved knowledge |
 
-```powershell
-$env:OPENAI_API_KEY="sk-proj-your-key-here"
-$env:LCA_RETRIEVER_BACKEND="chroma"
-python -m lca.rag.ingest
-streamlit run app/streamlit_app.py
-```
+Every value the model returns must already exist in the catalogue database. A
+configuration containing an invented finish is discarded whole - not patched -
+and the rule-based proposal takes over. No path exists by which a language model
+can influence a price, a lead time, or an availability status.
+
+Each answer records whether the brief and the configuration came from the model
+or the fallback rules, and the UI shows it.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A["Client conversation"] --> B["Intent and memory"]
-    B --> C["Knowledge retrieval"]
-    C --> D["Configuration proposal"]
+    A["Client conversation"] --> B["Extract intent (LLM + rules)"]
+    B --> C["Retrieve knowledge"]
+    C --> D["Propose configuration (LLM, catalogue-constrained)"]
     D --> E["Tool calls"]
-    E --> F["Evaluation and response"]
-    E --> G["Price estimate"]
-    E --> H["Availability check"]
-    E --> I["Complementary options"]
+    E --> F{"Over budget?"}
+    F -- "yes, once" --> D
+    F -- "no" --> G["Evaluate and respond"]
+    E --> H["Price estimate"]
+    E --> I["Availability check"]
+    E --> J["Complementary options"]
 ```
+
+## Catalogue database
+
+`data/catalog.db` (SQLite, rebuilt automatically if absent) holds 4 models,
+20 paints, 14 leathers, 10 veneers, 8 wheels, 57 priced options, per-region
+availability with lead times, regional price uplifts, and configuration
+constraints. Pricing is itemised from these rows.
+
+All figures are illustrative sales-discovery data. Bespoke commission pricing is
+not published by any manufacturer, so there is no public source for it.
+
+## Retrieval
+
+Knowledge lives in the same database as the catalogue, in a `knowledge` table of
+48 focused passages covering positioning, materials, paint, availability,
+regional considerations, wheels, options, sustainability, the commission
+process, personalisation, client archetypes, pricing guidance and aftercare.
+There is no second knowledge source.
+
+One row is one passage, and one passage is one embedding. That is deliberate:
+whole-document embeddings average several topics into a single vector and
+retrieve poorly, so the unit of storage is the unit retrieval should return.
+
+Two backends over the same rows. `lexical` is TF-IDF over the prose plus a
+curated keyword column, and needs no setup. `chroma` is semantic and runs an
+on-device ONNX embedding model, so it needs no API key either - which matters
+because most chat-only providers, Groq and xAI included, expose no embeddings
+endpoint at all.
+
+```powershell
+uv run lca-ingest
+$env:LCA_RETRIEVER_BACKEND="chroma"
+uv run streamlit run app/streamlit_app.py
+```
+
+Both backends resolve "parked outdoors under blazing sunshine in a gritty, arid
+place" to the regional heat-and-sand guidance. Semantic retrieval earns its
+place on vocabulary the curated keywords do not anticipate; lexical retrieval is
+faster, needs no model, and is the default.
 
 ## Stack
 
 - Python 3.11+
-- LangGraph-ready agent structure
-- Local markdown knowledge base
-- ChromaDB local vector store with OpenAI `text-embedding-3-small`
-- Streamlit UI
-- Typer eval CLI
-- `uv` dependency management
-
-## API Key Setup
-
-Create an OpenAI API key from the OpenAI Platform dashboard, then copy
-`.env.example` to `.env` and set:
-
-```env
-LCA_MODEL_PROVIDER=openai
-OPENAI_API_KEY=sk-proj-your-key-here
-LCA_OPENAI_MODEL=gpt-4o-mini
-```
-
-Never paste a real API key into GitHub, chat, screenshots, or the README.
+- LangGraph agent with a conditional re-configuration loop
+- SQLite catalogue and knowledge base, single source of truth
+- ChromaDB vector store with local ONNX embeddings, no API key
+- Groq (or any OpenAI-compatible provider) for reasoning and wording
+- Pydantic schemas constraining every model output
+- Streamlit UI with an agent trace, provenance labels and a usage meter
+- Typer eval CLI, pytest, ruff, pyright
 
 ## Evaluation
 
 ```powershell
 uv run lca-eval
+uv run pytest -q
 ```
 
-Current starter harness includes 5 behavior checks. The portfolio target is
-15-20 cases covering model fit, regional constraints, budget/timeline handling,
-and sales-summary quality.
+20 scenario cases plus unit tests. The evals assert against the agent's
+structured state - chosen model, region, materials, budget verdict, retrieval
+categories, proposal count - rather than substrings in the prose. That matters:
+the summary echoes the client's brief, so a text assertion can pass on words the
+client supplied rather than on anything the agent decided.
 
-## Current Limitations
+They run without a model key, exercising the deterministic layer that must never
+regress. Cases include the over-budget re-configuration loop, the vegan-cabin
+constraint, and a check that every priced line resolves to a real catalogue row.
 
-- Commercial data is mocked.
-- Retriever defaults to lexical search so the app can run before API setup.
-- The first pass uses deterministic response synthesis; real model-written sales
-  summaries are the next implementation step after the API key is configured.
+## Current limitations
+
+- Commercial data is illustrative; the tool interfaces stand in for real dealer
+  systems, and bespoke commission pricing is not published by any manufacturer.
+- Budgets are treated as EUR regardless of the currency the client states.
+- The re-configuration loop fires on an over-budget estimate but cannot reliably
+  reduce the total, because the model is deliberately not shown prices and so
+  cannot optimise against a ceiling. Passing option prices on revision passes
+  only - where the model chooses cheaper items but still never quotes a figure -
+  is the next fix.
+- Option shortlisting before the configuration call keeps the prompt small; that
+  narrowing is keyword-based, so an unusual brief may not surface every relevant
+  option.

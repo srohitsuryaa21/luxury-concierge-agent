@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import sys
-import time
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -10,6 +10,12 @@ import streamlit as st
 
 from lca.agent import LuxuryConciergeAgent
 from lca.config import get_settings
+from lca.llm import get_usage, provider_status
+
+# session_state.messages holds chat turns; assistant turns additionally carry
+# the full agent result dict under "result". Typed loosely on purpose since
+# values are a mix of str (role/content) and dict (result).
+ChatMessage = dict[str, Any]
 
 st.set_page_config(page_title="Luxury Concierge Agent", page_icon="LCA", layout="wide")
 
@@ -135,34 +141,6 @@ def apply_theme() -> None:
             100% { box-shadow: 0 0 0 0 rgba(18, 183, 106, 0); }
         }
 
-        .prompt-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px;
-            margin: 12px 0 18px;
-        }
-
-        .prompt-card {
-            border: 1px solid var(--lca-border);
-            background: rgba(255, 255, 255, 0.74);
-            border-radius: 8px;
-            padding: 13px 14px;
-            min-height: 112px;
-        }
-
-        .prompt-card strong {
-            display: block;
-            margin-bottom: 7px;
-            color: #101828;
-            font-size: 0.95rem;
-        }
-
-        .prompt-card span {
-            color: #667085;
-            font-size: 0.90rem;
-            line-height: 1.38;
-        }
-
         .brief-grid {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -192,27 +170,7 @@ def apply_theme() -> None:
             overflow-wrap: anywhere;
         }
 
-        .thinking-panel {
-            border: 1px solid rgba(26, 115, 232, 0.18);
-            background: linear-gradient(135deg, rgba(26, 115, 232, 0.08), rgba(15, 157, 138, 0.07));
-            border-radius: 8px;
-            padding: 16px 18px;
-            margin: 12px 0;
-        }
-
-        .thinking-title {
-            font-weight: 760;
-            color: #101828;
-            margin-bottom: 8px;
-        }
-
-        .thinking-line {
-            color: #475467;
-            margin: 4px 0;
-            font-size: 0.94rem;
-        }
-
-        div[data-testid="stChatMessage"] {
+div[data-testid="stChatMessage"] {
             background: rgba(255, 255, 255, 0.70);
             border: 1px solid var(--lca-border);
             border-radius: 8px;
@@ -227,12 +185,56 @@ def apply_theme() -> None:
             border-top: 1px solid rgba(32, 37, 52, 0.08);
         }
 
+        .stButton > button {
+            border-radius: 8px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --lca-bg: #0b0d12;
+                --lca-surface: rgba(255, 255, 255, 0.04);
+                --lca-border: rgba(255, 255, 255, 0.10);
+                --lca-text: #e6e8ee;
+                --lca-muted: #94a0b4;
+            }
+
+            .stApp {
+                background:
+                    radial-gradient(circle at 12% 0%, rgba(26, 115, 232, 0.16), transparent 34%),
+                    radial-gradient(circle at 90% 4%, rgba(15, 157, 138, 0.14), transparent 30%),
+                    linear-gradient(180deg, #0b0d12 0%, #0e1117 42%, #0b0d12 100%);
+                color: var(--lca-text);
+            }
+
+            [data-testid="stSidebar"] {
+                background: rgba(255, 255, 255, 0.03);
+            }
+
+            .status-pill,
+            .brief-tile {
+                background: rgba(255, 255, 255, 0.05);
+            }
+
+            .hero h1,
+            .brief-value,
+            .status-pill {
+                color: var(--lca-text);
+            }
+
+            div[data-testid="stChatMessage"] {
+                background: rgba(255, 255, 255, 0.04);
+            }
+
+            div[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
+                background: rgba(255, 255, 255, 0.07);
+            }
+        }
+
         @media (max-width: 860px) {
             .brand-row {
                 align-items: flex-start;
                 flex-direction: column;
             }
-            .prompt-grid,
             .brief-grid {
                 grid-template-columns: 1fr;
             }
@@ -247,7 +249,7 @@ def apply_theme() -> None:
 
 
 def render_header() -> None:
-    settings = get_settings()
+    status = provider_status()
     st.markdown(
         f"""
         <section class="hero">
@@ -261,7 +263,7 @@ def render_header() -> None:
                 </div>
                 <div class="status-pill">
                     <span class="pulse"></span>
-                    Local model: {settings.ollama_model if settings.model_provider == "ollama" else settings.model_provider}
+                    {"Model: " + str(status["model"]) if status["ready"] else "MODEL NOT CONNECTED"}
                 </div>
             </div>
             <p class="hero-copy">
@@ -274,29 +276,37 @@ def render_header() -> None:
     )
 
 
-def render_prompt_cards() -> None:
-    st.markdown(
-        """
-        <div class="prompt-grid">
-            <div class="prompt-card">
-                <strong>Family commission</strong>
-                <span>Dubai client, mountain trips, warm handcrafted cabin, rear-seat comfort, 10-month timeline.</span>
-            </div>
-            <div class="prompt-card">
-                <strong>Electric grand tourer</strong>
-                <span>London client wants quiet electric luxury, sustainable materials, modern cabin, discreet exterior.</span>
-            </div>
-            <div class="prompt-card">
-                <strong>Formal chauffeur brief</strong>
-                <span>Black flagship presence, rear privacy, ceremonial use, calm cabin, high-touch sales handoff.</span>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+SAMPLE_BRIEFS = [
+    (
+        "Family commission",
+        "Dubai client, mountain trips, warm handcrafted cabin, rear-seat comfort, 10-month timeline.",
+    ),
+    (
+        "Electric grand tourer",
+        "London client wants quiet electric luxury, sustainable materials, modern cabin, discreet exterior.",
+    ),
+    (
+        "Formal chauffeur brief",
+        "Black flagship presence, rear privacy, ceremonial use, calm cabin, high-touch sales handoff.",
+    ),
+]
 
 
-def render_brief(result: dict) -> None:
+def render_prompt_cards() -> str | None:
+    """Clickable sample-brief cards. Returns the picked brief text, if any."""
+    st.caption("Try a sample brief")
+    picked = None
+    columns = st.columns(3)
+    for column, (title, description) in zip(columns, SAMPLE_BRIEFS):
+        with column, st.container(border=True):
+            st.markdown(f"**{title}**")
+            st.caption(description)
+            if st.button("Use this brief", key=f"sample_{title}", use_container_width=True):
+                picked = description
+    return picked
+
+
+def render_brief(result: dict[str, Any]) -> None:
     config = result.get("configuration", {})
     price = result.get("price", {})
     availability = result.get("availability", {})
@@ -327,14 +337,48 @@ def render_brief(result: dict) -> None:
         """,
         unsafe_allow_html=True,
     )
+    budget = result.get("budget_eur")
+    if budget:
+        fit = price.get("budget_fit")
+        if fit == "over_budget":
+            st.caption(f"Stated budget EUR {budget:,} — estimate is above budget.")
+        elif fit == "fits":
+            st.caption(f"Stated budget EUR {budget:,} — estimate fits.")
 
 
 def render_sidebar() -> None:
     settings = get_settings()
+    if st.sidebar.button("New conversation", use_container_width=True):
+        st.session_state.clear()
+        st.rerun()
+    st.sidebar.divider()
     st.sidebar.subheader("Run Mode")
-    st.sidebar.write(f"Provider: `{settings.model_provider}`")
-    st.sidebar.write(f"Model: `{settings.ollama_model if settings.model_provider == 'ollama' else settings.openai_model}`")
+    status = provider_status()
+    st.sidebar.write(f"Provider: `{status['provider']}`")
+    st.sidebar.write(f"Model: `{status['model']}`")
     st.sidebar.write(f"Retriever: `{settings.retriever_backend}`")
+    if status["ready"]:
+        st.sidebar.success("Model connected", icon=":material/check_circle:")
+    else:
+        st.sidebar.error(status["detail"], icon=":material/error:")
+
+    # Usage meter. Failures are shown next to calls on purpose: the agent falls
+    # back to deterministic rules when the model is unreachable, so without this
+    # a broken key looks exactly like a working demo.
+    usage = get_usage()
+    st.sidebar.divider()
+    st.sidebar.subheader("Model Usage")
+    left, right = st.sidebar.columns(2)
+    left.metric("Calls", usage.calls)
+    right.metric("Failures", usage.failures)
+    left.metric("Prompt tok", f"{usage.prompt_tokens:,}")
+    right.metric("Output tok", f"{usage.completion_tokens:,}")
+    st.sidebar.caption(f"Total tokens this session: {usage.total_tokens:,}")
+    if usage.calls and usage.failures == usage.calls:
+        st.sidebar.warning("Every model call failed - answers are rule-based only.")
+    if usage.last_error:
+        st.sidebar.caption("Last model error")
+        st.sidebar.code(usage.last_error, language=None)
 
     if "last_result" in st.session_state:
         result = st.session_state.last_result
@@ -350,30 +394,14 @@ def render_sidebar() -> None:
             st.json(result.get("context", []))
 
 
-def run_agent_with_progress(prompt: str) -> dict:
+def run_agent(prompt: str) -> dict[str, Any]:
+    """Run the deterministic pipeline. No artificial delays: retrieval, tool
+    calls, pricing, and availability are all local computation and typically
+    finish in well under a second."""
     agent = get_agent()
-    progress = st.progress(0, text="Understanding the client brief")
-    status_box = st.empty()
-    status_box.markdown(
-        """
-        <div class="thinking-panel">
-            <div class="thinking-title">Crafting the recommendation</div>
-            <div class="thinking-line">Reading intent, region, timeline, and cabin preferences...</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    time.sleep(0.25)
-    progress.progress(22, text="Retrieving product knowledge")
-    time.sleep(0.25)
-    progress.progress(48, text="Calling configuration and availability tools")
-    time.sleep(0.25)
-    progress.progress(72, text="Preparing the sales-ready summary")
-    result = agent.invoke(prompt, memory=st.session_state.messages[:-1])
-    progress.progress(100, text="Recommendation ready")
-    time.sleep(0.25)
-    progress.empty()
-    status_box.empty()
+    with st.status("Reading the brief and pricing the configuration...", expanded=False) as status:
+        result = agent.invoke(prompt, memory=st.session_state.messages[:-1])
+        status.update(label="Recommendation ready", state="complete")
     return result
 
 
@@ -382,15 +410,18 @@ render_header()
 render_sidebar()
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [
+    initial_messages: list[ChatMessage] = [
         {
             "role": "assistant",
             "content": "Describe the client, region, usage, cabin mood, timeline, and budget.",
         }
     ]
+    st.session_state.messages = initial_messages
 
 if len(st.session_state.messages) == 1:
-    render_prompt_cards()
+    picked_brief = render_prompt_cards()
+    if picked_brief:
+        st.session_state.pending_prompt = picked_brief
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -398,7 +429,8 @@ for message in st.session_state.messages:
             render_brief(message["result"])
         st.markdown(message["content"])
 
-prompt = st.chat_input("Describe the client brief, preferences, region, timeline, and budget...")
+typed_prompt = st.chat_input("Describe the client brief, preferences, region, timeline, and budget...")
+prompt = typed_prompt or st.session_state.pop("pending_prompt", None)
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -406,10 +438,10 @@ if prompt:
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        result = run_agent_with_progress(prompt)
-        response = result["response"]
+        result = run_agent(prompt)
         render_brief(result)
-        st.markdown(response)
+        agent = get_agent()
+        response = st.write_stream(agent.stream_response(result))
 
     st.session_state.last_result = result
     st.session_state.messages.append(

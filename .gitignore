@@ -5,6 +5,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .chroma/
+# Generated from src/lca/data/seed.py and knowledge.py on first run.
+data/*.db
 dist/
 build/
 *.egg-info/
