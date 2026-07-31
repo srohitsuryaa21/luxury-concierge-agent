@@ -6,7 +6,7 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph
 
-from lca.agent.reasoning import extract_brief, propose_configuration
+from lca.agent.reasoning import enforce_surcharge_budget, extract_brief, propose_configuration
 from lca.agent.state import DEFAULT_REGION, ConciergeState, initial_state
 from lca.config import get_settings
 from lca.data import get_repository
@@ -132,7 +132,9 @@ class LuxuryConciergeAgent:
 
         # Guidance is only meaningful on a re-entry, which is signalled by the
         # previous pass having priced the commission over the client's budget.
+        repo = get_repository()
         guidance = None
+        surcharge_budget = None
         total = state["price"].get("estimated_total")
         budget = state.get("budget_eur")
         if (
@@ -146,12 +148,20 @@ class LuxuryConciergeAgent:
                 "brief: prefer a house-palette finish, fewer options, and a simpler veneer. "
                 "Do not change the model unless there is no other way."
             )
+            # Headroom is what remains once the fixed model base and the regional
+            # uplift are accounted for. Solving for the pre-uplift surcharge
+            # keeps the arithmetic in Python; the model only has to stay under it.
+            model_row = repo.model(fallback["model"]) or {}
+            base = int(model_row.get("base_price_eur", 0))
+            factor = float(state["price"].get("regional_factor", 1.0)) or 1.0
+            surcharge_budget = max(int(budget / factor) - base, 0)
 
         proposal, source, rejected = propose_configuration(
             brief_text=state["client_profile"],
-            repo=get_repository(),
+            repo=repo,
             context=state.get("context"),
             guidance=guidance,
+            surcharge_budget=surcharge_budget,
         )
 
         if proposal is None:
@@ -170,6 +180,11 @@ class LuxuryConciergeAgent:
                 "rationale": proposal.rationale
                 or f"Selected for a {state['region']} client profile: {state['client_profile']}",
             }
+
+        if surcharge_budget is not None:
+            state["removed_for_budget"] = enforce_surcharge_budget(
+                state["configuration"], repo, surcharge_budget
+            )
 
         state["config_source"] = source
         state["rejected_items"] = rejected
@@ -252,8 +267,33 @@ class LuxuryConciergeAgent:
                     f"\nStated budget: EUR {budget:,} - the estimate is above the stated budget; "
                     "flag this for a scope or trim-level discussion before proposing."
                 )
+                # Distinguish "specified too richly" from "wrong car". When the
+                # base alone clears the budget, no amount of reconfiguring helps
+                # and continuing to shave options wastes the client's time.
+                base = next(
+                    (
+                        line["price_eur"]
+                        for line in price.get("line_items", [])
+                        if line["category"] == "base"
+                    ),
+                    0,
+                )
+                factor = float(price.get("regional_factor", 1.0)) or 1.0
+                if int(base * factor) > budget:
+                    budget_line += (
+                        f"\nNote: the {config['model']} base price alone is above this budget in "
+                        f"{state['region']}, so no specification of this model will fit. A "
+                        "different model tier is the only route to the stated figure."
+                    )
             else:
                 budget_line = f"\nStated budget: EUR {budget:,}."
+
+        removed = state.get("removed_for_budget") or []
+        if removed:
+            budget_line += (
+                f"\nRemoved to meet the budget: {', '.join(removed)}. Raise these with the "
+                "client before proposing - they were part of the brief."
+            )
 
         fallback = (
             f"Recommended configuration: {config['model']} in {config['exterior_finish']} "

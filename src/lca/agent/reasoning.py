@@ -76,6 +76,7 @@ def propose_configuration(
     repo: CatalogRepository,
     context: list[dict[str, Any]] | None = None,
     guidance: str | None = None,
+    surcharge_budget: int | None = None,
 ) -> tuple[ProposedConfiguration | None, str, list[str]]:
     """Ask the LLM to configure from the catalogue.
 
@@ -108,6 +109,20 @@ def propose_configuration(
     if guidance:
         user += f"\n\nAdditional instruction:\n{guidance}"
 
+    if surcharge_budget is not None:
+        # Prices are withheld on the first pass so the model reasons about what
+        # the client wants, not what is cheap. On a re-configuration it has to
+        # hit a ceiling, and it cannot do that blind - so the surcharges are
+        # supplied here only. It still must never quote a figure back.
+        user += (
+            f"\n\nSurcharges above the model base price, in EUR:\n"
+            f"{_price_sheet(repo, catalogue)}\n\n"
+            f"The chosen exterior, leather, veneer, wheel and options must total "
+            f"no more than {surcharge_budget:,} EUR of surcharge. Items priced 0 "
+            f"are house defaults and are always safe. Report no figures in your "
+            f"rationale."
+        )
+
     payload = complete_json(_PROPOSE_SYSTEM, user)
     if payload is None:
         return None, "rules", []
@@ -126,6 +141,83 @@ def propose_configuration(
 
     proposal.options = [name for name in proposal.options if name in set(catalogue["options"])]
     return proposal, "llm", rejected
+
+
+HOUSE_DEFAULTS = {
+    "exterior_finish": "Commissioned Midnight Sapphire",
+    "interior_leather": "Grace White full-grain leather",
+    "veneer": "Piano Black technical veneer",
+    "wheel": "22-inch part-polished forged wheel",
+}
+
+_MATERIAL_TABLES = (
+    ("exterior_finish", "paints"),
+    ("interior_leather", "leathers"),
+    ("veneer", "veneers"),
+    ("wheel", "wheels"),
+)
+
+
+def enforce_surcharge_budget(
+    config: dict[str, Any], repo: CatalogRepository, budget: int
+) -> list[str]:
+    """Trim a configuration until its surcharges fit, in place.
+
+    The model is asked to respect the ceiling and often will not - it weighs the
+    client's stated wishes above an instruction, and a 95,000 gallery commission
+    survives a 65,000 headroom. A budget is a hard constraint, so it is enforced
+    here rather than requested. Discretionary options go first, priciest first,
+    then materials fall back to house defaults.
+
+    Returns what was removed. Nothing may be dropped silently: the summary has
+    to tell the salesperson what the budget cost the client.
+    """
+    removed: list[str] = []
+
+    def surcharge() -> int:
+        total = sum(
+            repo.price_of(table, config.get(key, "")) for key, table in _MATERIAL_TABLES
+        )
+        return total + sum(
+            repo.price_of("options", name) for name in config.get("signature_options", [])
+        )
+
+    while surcharge() > budget and config.get("signature_options"):
+        priciest = max(
+            config["signature_options"], key=lambda name: repo.price_of("options", name)
+        )
+        config["signature_options"] = [
+            name for name in config["signature_options"] if name != priciest
+        ]
+        removed.append(priciest)
+
+    for key, _table in _MATERIAL_TABLES:
+        if surcharge() <= budget:
+            break
+        if config.get(key) != HOUSE_DEFAULTS[key]:
+            removed.append(config[key])
+            config[key] = HOUSE_DEFAULTS[key]
+
+    return removed
+
+
+_PRICED_TABLES = (
+    ("exterior_finishes", "paints"),
+    ("interior_leathers", "leathers"),
+    ("veneers", "veneers"),
+    ("wheels", "wheels"),
+    ("options", "options"),
+)
+
+
+def _price_sheet(repo: CatalogRepository, catalogue: dict[str, list[str]]) -> str:
+    """Surcharge for every candidate the model was offered, and nothing more."""
+    lines = [
+        f"{name} = {repo.price_of(table, name):,}"
+        for key, table in _PRICED_TABLES
+        for name in catalogue[key]
+    ]
+    return "\n".join(lines)
 
 
 _STAPLE_OPTIONS = (

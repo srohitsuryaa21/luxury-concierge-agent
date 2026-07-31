@@ -73,6 +73,21 @@ can influence a price, a lead time, or an availability status.
 Each answer records whether the brief and the configuration came from the model
 or the fallback rules, and the UI shows it.
 
+### Budgets are enforced, not requested
+
+On a re-configuration the model is given surcharges and a ceiling. It frequently
+ignores the ceiling - it weighs the client's stated wishes above an instruction,
+so a 95,000 gallery commission survives a 65,000 headroom. A budget is a hard
+constraint, so Python enforces it afterwards: discretionary options are dropped
+priciest-first, then materials fall back to house defaults.
+
+Nothing is dropped silently. Whatever the budget removed is named in the summary,
+because a client must not discover a downgrade at handover.
+
+Where the model's base price alone exceeds the budget, no specification can fit.
+The summary says so and names the model tier as the only route, rather than
+shaving options against an impossible target.
+
 ## Architecture
 
 ```mermaid
@@ -161,11 +176,8 @@ constraint, and a check that every priced line resolves to a real catalogue row.
 - Commercial data is illustrative; the tool interfaces stand in for real dealer
   systems, and bespoke commission pricing is not published by any manufacturer.
 - Budgets are treated as EUR regardless of the currency the client states.
-- The re-configuration loop fires on an over-budget estimate but cannot reliably
-  reduce the total, because the model is deliberately not shown prices and so
-  cannot optimise against a ceiling. Passing option prices on revision passes
-  only - where the model chooses cheaper items but still never quotes a figure -
-  is the next fix.
 - Option shortlisting before the configuration call keeps the prompt small; that
   narrowing is keyword-based, so an unusual brief may not surface every relevant
   option.
+- Retrieval feeds the configuration prompt but is not yet cited line by line in
+  the summary, so a reader cannot trace an individual claim to a passage.

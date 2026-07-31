@@ -33,6 +33,9 @@ class ConciergeState(TypedDict):
     brief_source: str
     config_source: str
     rejected_items: list[str]
+    # Items the budget forced out of the specification. Surfaced in the summary:
+    # a client must never discover a silent downgrade at handover.
+    removed_for_budget: list[str]
     revisions: int
 
 
@@ -55,5 +58,6 @@ def initial_state(user_input: str, memory: list[dict[str, str]] | None = None) -
         brief_source="rules",
         config_source="rules",
         rejected_items=[],
+        removed_for_budget=[],
         revisions=0,
     )
