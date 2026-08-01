@@ -21,7 +21,42 @@ const DAILY_TOKENS = 100000;
 
 /* ── boot ─────────────────────────────────────────────────────── */
 
+/* ── theme ────────────────────────────────────────────────────── */
+
+/* Follow the operating system until the user states a preference, then honour
+   that. Applied before the first paint by an inline script in the head to avoid
+   a flash of the wrong theme. */
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  $("theme-icon").textContent = theme === "dark" ? "◐" : "◑";
+  $("theme-toggle").title =
+    theme === "dark" ? "Switch to light (Ctrl+J)" : "Switch to dark (Ctrl+J)";
+}
+
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme") || "dark";
+}
+
+function toggleTheme() {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  localStorage.setItem("theme", next);
+  applyTheme(next);
+  toast(next === "dark" ? "Dark" : "Light");
+}
+
+function restoreTheme() {
+  const saved = localStorage.getItem("theme");
+  if (saved) return applyTheme(saved);
+  const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+  applyTheme(prefersLight ? "light" : "dark");
+}
+
+window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (e) => {
+  if (!localStorage.getItem("theme")) applyTheme(e.matches ? "light" : "dark");
+});
+
 async function boot() {
+  restoreTheme();
   restoreSidebar();
   try {
     const data = await (await fetch("/api/bootstrap")).json();
@@ -673,6 +708,7 @@ function renderPalette() {
 
 $("palette-input").addEventListener("input", (e) => filterPalette(e.target.value));
 $("palette-open").addEventListener("click", openPalette);
+$("theme-toggle").addEventListener("click", toggleTheme);
 $("palette-scrim").addEventListener("click", closePalette);
 $("palette-input").addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown") {
@@ -718,6 +754,9 @@ document.addEventListener("keydown", (e) => {
   } else if (meta && e.key.toLowerCase() === "b") {
     e.preventDefault();
     toggleSidebar();
+  } else if (meta && e.key.toLowerCase() === "j") {
+    e.preventDefault();
+    toggleTheme();
   } else if (meta && e.shiftKey && e.key.toLowerCase() === "n") {
     e.preventDefault();
     startNew();

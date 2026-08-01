@@ -4,6 +4,15 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Luxury Concierge — Commission Studio</title>
+<script>
+  /* Set the theme before first paint, or the page flashes the wrong one while
+     the stylesheet and app.js load. */
+  (function () {
+    var saved = localStorage.getItem("theme");
+    var light = window.matchMedia("(prefers-color-scheme: light)").matches;
+    document.documentElement.setAttribute("data-theme", saved || (light ? "light" : "dark"));
+  })();
+</script>
 <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body>
@@ -51,6 +60,9 @@
         <span class="crumb-title" id="crumb-title">Commission Studio</span>
       </div>
       <div class="topbar-right">
+        <button class="ghost-btn" id="theme-toggle" title="Switch theme (Ctrl+J)" aria-label="Switch theme">
+          <span id="theme-icon">◐</span>
+        </button>
         <button class="ghost-btn" id="palette-open" title="Command palette (Ctrl+K)">⌘K</button>
         <div class="status"><span class="dot" id="status-dot"></span><span id="status-text">connecting…</span></div>
       </div>
