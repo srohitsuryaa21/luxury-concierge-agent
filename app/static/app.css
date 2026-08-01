@@ -191,16 +191,14 @@ body {
   width: 100%;
   text-align: left;
   cursor: pointer;
-  background: none;
-  border: 0;
   border-radius: 3px;
   color: inherit;
-  font: inherit;
   padding: 0.62rem 2rem 0.66rem 0.75rem;
   margin-bottom: 1px;
   transition: background 0.25s var(--ease);
 }
 .convo:hover { background: var(--surface-2); }
+.convo:focus-visible { outline: 1px solid var(--gold-dim); outline-offset: -1px; }
 .convo.active { background: var(--surface-3); box-shadow: inset 2px 0 0 var(--gold); }
 
 .convo-title {

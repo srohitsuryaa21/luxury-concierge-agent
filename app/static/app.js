@@ -127,24 +127,48 @@ function renderSamples(samples) {
 
 const isNarrow = () => window.matchMedia("(max-width: 900px)").matches;
 
+function syncSidebarFocus() {
+  // A zero-width sidebar is still in the tab order, so focus disappears into
+  // invisible controls. `inert` removes it from tabbing and the a11y tree.
+  const shell = $("shell");
+  const hidden = isNarrow()
+    ? !shell.classList.contains("open-mobile")
+    : shell.classList.contains("collapsed");
+  $("sidebar").inert = hidden;
+}
+
 function restoreSidebar() {
   if (localStorage.getItem("sidebar") === "collapsed") {
     $("shell").classList.add("collapsed");
   }
+  syncSidebarFocus();
 }
 
 function toggleSidebar() {
   const shell = $("shell");
   if (isNarrow()) {
     shell.classList.toggle("open-mobile");
-    return;
+  } else {
+    shell.classList.toggle("collapsed");
+    localStorage.setItem(
+      "sidebar",
+      shell.classList.contains("collapsed") ? "collapsed" : "open"
+    );
   }
-  shell.classList.toggle("collapsed");
-  localStorage.setItem(
-    "sidebar",
-    shell.classList.contains("collapsed") ? "collapsed" : "open"
-  );
+  syncSidebarFocus();
 }
+
+function closeMobileSidebar() {
+  if (isNarrow()) {
+    $("shell").classList.remove("open-mobile");
+    syncSidebarFocus();
+  }
+}
+
+// Tapping the content should dismiss an overlaid rail, and a resize past the
+// breakpoint must not leave the rail in the other mode's state.
+$("scroll").addEventListener("click", closeMobileSidebar);
+window.addEventListener("resize", syncSidebarFocus);
 
 $("collapse").addEventListener("click", toggleSidebar);
 $("expand").addEventListener("click", toggleSidebar);
@@ -180,9 +204,14 @@ function renderConversations() {
   }
 
   rows.forEach((row) => {
-    const item = document.createElement("button");
+    // A div, not a button: this row contains rename and delete buttons, and the
+    // rename swaps a text input in. Nested interactive elements inside a button
+    // are invalid HTML and browsers handle them unpredictably - inner clicks
+    // get swallowed and the input will not reliably take typing.
+    const item = document.createElement("div");
     item.className = "convo" + (row.id === state.conversationId ? " active" : "");
-    item.type = "button";
+    item.setAttribute("role", "button");
+    item.tabIndex = 0;
     item.innerHTML = `<div class="convo-title"></div><div class="convo-meta"></div>`;
     item.querySelector(".convo-title").textContent = row.title;
     const meta = [
@@ -193,6 +222,12 @@ function renderConversations() {
     ].filter(Boolean);
     item.querySelector(".convo-meta").textContent = meta.join(" · ");
     item.addEventListener("click", () => openConversation(row.id));
+    item.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openConversation(row.id);
+      }
+    });
 
     const menu = document.createElement("div");
     menu.className = "convo-menu";
@@ -286,7 +321,7 @@ async function openConversation(id) {
     if (m.role === "user") appendBrief(m.content);
     else if (m.result) appendDocument({ ...m.result, summary: m.content });
   });
-  if (isNarrow()) $("shell").classList.remove("open-mobile");
+  closeMobileSidebar();
   renderConversations();
 }
 
@@ -296,7 +331,7 @@ function startNew() {
   $("thread").hidden = true;
   $("stage").hidden = false;
   $("crumb-title").textContent = "Commission Studio";
-  if (isNarrow()) $("shell").classList.remove("open-mobile");
+  closeMobileSidebar();
   renderConversations();
   $("brief").focus();
 }
