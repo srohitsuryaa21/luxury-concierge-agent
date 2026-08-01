@@ -8,12 +8,13 @@ lets the page present it.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -154,8 +155,19 @@ def remove_conversation(conversation_id: str) -> JSONResponse:
     return JSONResponse({"deleted": conversation_id})
 
 
-@app.post("/api/brief")
-def submit(request: BriefRequest) -> JSONResponse:
+class RenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+
+
+@app.patch("/api/conversations/{conversation_id}")
+def rename_conversation(conversation_id: str, request: RenameRequest) -> JSONResponse:
+    if not store().rename(conversation_id, request.title):
+        return JSONResponse({"error": "No such conversation."}, status_code=404)
+    return JSONResponse({"id": conversation_id, "title": request.title})
+
+
+def _run(request: BriefRequest) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """Resolve the conversation, run the agent, and shape the response payload."""
     conversations = store()
     conversation_id = request.conversation_id
     if conversation_id and conversations.transcript(conversation_id) is None:
@@ -194,6 +206,50 @@ def submit(request: BriefRequest) -> JSONResponse:
         },
         "usage": get_usage().as_dict(),
     }
+    return conversation_id, result, payload
 
-    conversations.record_turn(conversation_id, request.brief, payload)
+
+@app.post("/api/brief")
+def submit(request: BriefRequest) -> JSONResponse:
+    conversation_id, _result, payload = _run(request)
+    store().record_turn(conversation_id, request.brief, payload)
     return JSONResponse(payload)
+
+
+def _sse(event: str, data: Any) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+@app.post("/api/brief/stream")
+def submit_stream(request: BriefRequest) -> StreamingResponse:
+    """Send the finished commission first, then stream the model's wording.
+
+    The commercial answer is deterministic and takes milliseconds, so it should
+    not wait behind a language model. The page renders the document immediately
+    and the prose writes itself into it afterwards - which is also an honest
+    picture of the architecture.
+    """
+
+    def events():
+        conversation_id, result, payload = _run(request)
+        turn = store().record_turn(conversation_id, request.brief, payload)["turn"]
+        yield _sse("document", payload)
+
+        pieces: list[str] = []
+        try:
+            for piece in agent().stream_response(result):
+                pieces.append(piece)
+                yield _sse("token", {"t": piece})
+        except Exception as exc:  # noqa: BLE001 - the document is already sent
+            yield _sse("warning", {"message": f"{type(exc).__name__}: {exc}"[:300]})
+
+        written = "".join(pieces).strip()
+        if written and written != payload["summary"]:
+            store().set_summary(conversation_id, turn, written)
+        yield _sse("done", {"usage": get_usage().as_dict(), "summary": written})
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

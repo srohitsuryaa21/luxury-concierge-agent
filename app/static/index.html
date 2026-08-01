@@ -8,65 +8,93 @@
 </head>
 <body>
 
-<header class="masthead">
-  <div class="wordmark">
-    <button class="ghost-btn" id="history-toggle" aria-label="Past commissions">Commissions</button>
-    <span class="rule"></span>
-    <span class="monogram">LCA</span>
-    <span class="rule"></span>
-    <span class="marque">Commission Studio</span>
-  </div>
-  <div class="masthead-right">
-    <button class="ghost-btn" id="new-conversation" hidden>New commission</button>
-    <div class="status" id="status">
-      <span class="dot" id="status-dot"></span>
-      <span id="status-text">connecting…</span>
+<div class="shell" id="shell">
+
+  <!-- ── sidebar ─────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <button class="icon-btn" id="collapse" title="Collapse sidebar (Ctrl+B)" aria-label="Collapse sidebar">
+        <span class="bars"><i></i><i></i><i></i></span>
+      </button>
+      <span class="sidebar-brand">Commissions</span>
     </div>
+
+    <button class="new-btn" id="new-conversation" title="New commission (Ctrl+Shift+N)">
+      <span class="plus">+</span><span class="new-label">New commission</span>
+    </button>
+
+    <div class="search-wrap">
+      <input id="search" type="search" placeholder="Search commissions" aria-label="Search commissions" />
+    </div>
+
+    <div class="convo-list" id="convo-list"></div>
+
+    <div class="sidebar-foot">
+      <div class="meter-row"><span>Model</span><b id="m-model">—</b></div>
+      <div class="meter-row"><span>Calls</span><b id="m-calls">0</b></div>
+      <div class="meter-row"><span>Failures</span><b id="m-fail">0</b></div>
+      <div class="meter-row"><span>Tokens</span><b id="m-tokens">0</b></div>
+      <div class="meter-bar"><i id="m-bar"></i></div>
+      <div class="meter-note" id="m-note">of 100,000 daily free tier</div>
+    </div>
+  </aside>
+
+  <!-- ── main ────────────────────────────────────────────────── -->
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn rail-toggle" id="expand" title="Show sidebar (Ctrl+B)" aria-label="Show sidebar">
+        <span class="bars"><i></i><i></i><i></i></span>
+      </button>
+      <div class="crumb">
+        <span class="monogram">LCA</span>
+        <span class="crumb-sep"></span>
+        <span class="crumb-title" id="crumb-title">Commission Studio</span>
+      </div>
+      <div class="topbar-right">
+        <button class="ghost-btn" id="palette-open" title="Command palette (Ctrl+K)">⌘K</button>
+        <div class="status"><span class="dot" id="status-dot"></span><span id="status-text">connecting…</span></div>
+      </div>
+    </header>
+
+    <div class="scroll" id="scroll">
+      <section class="stage" id="stage">
+        <p class="overline">Bespoke configuration</p>
+        <h1>Describe the client.</h1>
+        <p class="lede">
+          Region, usage, cabin mood, timeline, budget — in whatever words they used.
+          The brief is read, the commission is configured against the catalogue, and
+          every figure is calculated, never guessed.
+        </p>
+        <div class="samples" id="samples"></div>
+      </section>
+
+      <section class="thread" id="thread" hidden></section>
+    </div>
+
+    <form class="composer" id="composer" autocomplete="off">
+      <div class="composer-inner">
+        <textarea id="brief" rows="1"
+          placeholder="A Dubai client, winters in the desert, wants presence for ceremonial use…"></textarea>
+        <button type="submit" id="send" aria-label="Configure">
+          <span class="send-label">Configure</span>
+          <span class="send-spinner" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="composer-hint">
+        <kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line · <kbd>Ctrl</kbd>+<kbd>K</kbd> for commands
+      </div>
+    </form>
   </div>
-</header>
+</div>
 
-<div class="scrim" id="scrim" hidden></div>
-<aside class="drawer" id="drawer" hidden aria-label="Past commissions">
-  <div class="drawer-head">
-    <span>Past commissions</span>
-    <button class="ghost-btn" id="drawer-close" aria-label="Close">Close</button>
-  </div>
-  <div class="drawer-list" id="drawer-list"></div>
-</aside>
+<!-- ── command palette ───────────────────────────────────────── -->
+<div class="palette-scrim" id="palette-scrim" hidden></div>
+<div class="palette" id="palette" hidden role="dialog" aria-label="Command palette">
+  <input id="palette-input" type="text" placeholder="Search briefs, commissions and actions…" />
+  <div class="palette-results" id="palette-results"></div>
+</div>
 
-<main>
-  <section class="stage" id="stage">
-    <p class="overline">Bespoke configuration</p>
-    <h1>Describe the client.</h1>
-    <p class="lede">
-      Region, usage, cabin mood, timeline, budget — in whatever words they used.
-      The brief is read, the commission is configured against the catalogue, and
-      every figure is calculated, never guessed.
-    </p>
-
-    <div class="samples" id="samples"></div>
-  </section>
-
-  <section class="thread" id="thread" hidden></section>
-</main>
-
-<form class="composer" id="composer" autocomplete="off">
-  <textarea id="brief" rows="1" placeholder="A Dubai client, winters in the desert, wants presence for ceremonial use…"></textarea>
-  <button type="submit" id="send" aria-label="Submit brief">
-    <span class="send-label">Configure</span>
-    <span class="send-spinner" aria-hidden="true"></span>
-  </button>
-</form>
-
-<footer class="meter" id="meter">
-  <span class="meter-item"><em id="m-calls">0</em> calls</span>
-  <span class="meter-sep"></span>
-  <span class="meter-item"><em id="m-fail">0</em> failures</span>
-  <span class="meter-sep"></span>
-  <span class="meter-item"><em id="m-tokens">0</em> tokens</span>
-  <span class="meter-sep"></span>
-  <span class="meter-item" id="m-catalogue"></span>
-</footer>
+<div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script src="/static/app.js"></script>
 </body>

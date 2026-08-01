@@ -131,6 +131,31 @@ class ConversationStore:
             )
         return {"conversation_id": conversation_id, "turn": turn}
 
+    def rename(self, conversation_id: str, title: str) -> bool:
+        clean = " ".join(title.split())[:120]
+        if not clean:
+            return False
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?",
+                (clean, _now(), conversation_id),
+            )
+            return cursor.rowcount > 0
+
+    def set_summary(self, conversation_id: str, turn: int, summary: str) -> None:
+        """Replace a stored answer with the text the client actually saw.
+
+        The document is written the moment it is computed so a dropped
+        connection still leaves a record; if the model then streams a refined
+        summary, that is what belongs in the transcript.
+        """
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE messages SET content = ? WHERE conversation_id = ? "
+                "AND turn = ? AND role = 'assistant'",
+                (summary, conversation_id, turn),
+            )
+
     def delete(self, conversation_id: str) -> bool:
         with self._connect() as conn:
             conn.execute("PRAGMA foreign_keys=ON")
